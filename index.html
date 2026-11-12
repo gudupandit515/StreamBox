@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f0f0f">
+<title>StreamBox — Your Media</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{color-scheme:dark;--bg:#0f0f0f;--panel:#181818;--soft:#272727;--muted:#aaa;--red:#ff0033}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#f5f5f5;font:15px Arial,sans-serif}
+header{height:62px;display:flex;align-items:center;gap:16px;padding:0 20px;background:#111;position:sticky;top:0;z-index:5;border-bottom:1px solid #242424}
+.logo{font-size:21px;font-weight:800;letter-spacing:-.8px;white-space:nowrap}.logo b{color:var(--red)}
+.search{display:flex;max-width:620px;flex:1;margin:auto}.search input{width:100%;background:#090909;border:1px solid #333;border-radius:22px 0 0 22px;padding:12px 18px;color:white;outline:none}.search button,.pill{background:#292929;color:white;border:1px solid #393939;padding:10px 17px;cursor:pointer}.search button{border-radius:0 22px 22px 0}
+main{max-width:1400px;margin:auto;padding:22px;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px}
+.player-wrap{background:#000;border-radius:14px;overflow:hidden;aspect-ratio:16/9;display:grid;place-items:center}
+video,audio{width:100%;max-height:100%;background:#000}video{height:100%;object-fit:contain}
+.placeholder{color:#888;text-align:center;padding:24px}.placeholder .play{font-size:54px;color:#555}
+h1{font-size:21px;margin:17px 0 8px}.sub{color:var(--muted);font-size:13px}
+.controls{display:flex;gap:9px;flex-wrap:wrap;margin:16px 0}.pill{border-radius:20px}.pill.primary{background:var(--red);border-color:var(--red)}
+.panel{background:var(--panel);border-radius:14px;padding:16px;margin-bottom:14px}.panel h2{font-size:16px;margin:0 0 12px}
+.upload{display:block;border:1px dashed #555;border-radius:12px;padding:18px;text-align:center;color:#ddd;cursor:pointer}.upload input{display:none}
+.track{display:flex;align-items:center;gap:10px;padding:11px;border-radius:9px;cursor:pointer}.track:hover,.track.active{background:#303030}.thumb{width:54px;height:40px;border-radius:6px;background:#303030;display:grid;place-items:center;color:#bbb;flex-shrink:0}.track-name{font-size:13px;overflow-wrap:anywhere}.track small{display:block;color:#999;margin-top:4px}
+.note{font-size:12px;line-height:1.5;color:#aaa}
+@media(max-width:850px){main{grid-template-columns:1fr;padding:12px}.search{max-width:none}.logo{font-size:18px}header{padding:0 12px;gap:10px}.sidebar{display:grid;grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">▶ <b>Stream</b>Box</div>
+  <form class="search" id="searchForm"><input id="searchInput" placeholder="Search your library" aria-label="Search your library"><button>Search</button></form>
+</header>
+<main>
+<section>
+  <div class="player-wrap" id="playerWrap">
+    <div class="placeholder"><div class="play">▶</div><strong>Your videos. Your library.</strong><p>Add a media file to start watching or listening.</p></div>
+  </div>
+  <h1 id="nowTitle">Nothing playing</h1>
+  <div class="sub" id="nowSub">Your personal media player</div>
+  <div class="controls">
+    <button class="pill primary" id="audioMode">Audio-only mode</button>
+    <button class="pill" id="pipBtn">Picture in Picture</button>
+    <button class="pill" id="stopBtn">Stop</button>
+  </div>
+  <div class="panel">
+    <h2>How it works</h2>
+    <p class="note">Add video or audio files that you own or have permission to use. On supported Android browsers, audio may continue while the screen is locked if playback is already running. Background playback depends on your browser, device settings and power-saving rules; this page cannot guarantee screen-off playback on every phone.</p>
+  </div>
+</section>
+<aside class="sidebar">
+  <div class="panel">
+    <h2>Add to your library</h2>
+    <label class="upload">＋ Choose audio / video files<input id="fileInput" type="file" accept="audio/*,video/*" multiple></label>
+    <p class="note">Files stay in this browser session; refresh the page and you may need to add them again.</p>
+  </div>
+  <div class="panel">
+    <h2>Up next</h2>
+    <div id="playlist"><p class="note">Your playlist is empty.</p></div>
+  </div>
+</aside>
+</main>
+<script>
+const input=document.getElementById('fileInput'), wrap=document.getElementById('playerWrap'),
+title=document.getElementById('nowTitle'), sub=document.getElementById('nowSub'), list=document.getElementById('playlist');
+let items=[], current=-1, player=null, audioOnly=false;
+function playAt(i){
+  if(i<0||i>=items.length)return;
+  current=i; const item=items[i];
+  if(player){player.pause();player.remove();}
+  wrap.innerHTML='';
+  const isAudio=item.file.type.startsWith('audio/');
+  player=document.createElement(isAudio||audioOnly?'audio':'video');
+  player.src=item.url; player.controls=true; player.autoplay=true; player.playsInline=true;
+  player.style.width='100%'; if(player.tagName==='VIDEO')player.style.height='100%';
+  wrap.appendChild(player);
+  title.textContent=item.file.name; sub.textContent=(isAudio?'Audio':'Video')+' • Added from your device';
+  render();
+  if('mediaSession' in navigator){
+    navigator.mediaSession.metadata=new MediaMetadata({title:item.file.name,artist:'Your StreamBox library',album:'StreamBox'});
+    navigator.mediaSession.setActionHandler('play',()=>player.play());
+    navigator.mediaSession.setActionHandler('pause',()=>player.pause());
+    navigator.mediaSession.setActionHandler('previoustrack',()=>playAt(Math.max(0,current-1)));
+    navigator.mediaSession.setActionHandler('nexttrack',()=>playAt(Math.min(items.length-1,current+1)));
+  }
+  player.addEventListener('ended',()=>{if(current+1<items.length)playAt(current+1)});
+}
+function render(filter=''){
+  list.innerHTML='';
+  const matches=items.map((x,i)=>({...x,i})).filter(x=>x.file.name.toLowerCase().includes(filter.toLowerCase()));
+  if(!matches.length){list.innerHTML='<p class="note">No matching files. Add audio or video above.</p>';return}
+  matches.forEach(x=>{
+    const el=document.createElement('div');el.className='track'+(x.i===current?' active':'');
+    const icon=x.file.type.startsWith('audio/')?'♫':'▶';
+    el.innerHTML=`<div class="thumb">${icon}</div><div class="track-name"></div>`;
+    el.querySelector('.track-name').textContent=x.file.name;
+    el.addEventListener('click',()=>playAt(x.i));list.appendChild(el);
+  });
+}
+input.addEventListener('change',e=>{
+  [...e.target.files].forEach(file=>items.push({file,url:URL.createObjectURL(file)}));
+  render(); if(current===-1&&items.length)playAt(0);
+});
+document.getElementById('searchForm').addEventListener('submit',e=>{e.preventDefault();render(document.getElementById('searchInput').value)});
+document.getElementById('searchInput').addEventListener('input',e=>render(e.target.value));
+document.getElementById('audioMode').addEventListener('click',()=>{
+  if(!player||!player.src){alert('First add and play a media file.');return}
+  const wasPlaying=!player.paused, time=player.currentTime, src=player.src;
+  audioOnly=!audioOnly;
+  const item=items[current]; if(player){player.pause();player.remove()}
+  wrap.innerHTML='';
+  player=document.createElement(audioOnly?'audio':(item.file.type.startsWith('audio/')?'audio':'video'));
+  player.src=src;player.controls=true;player.currentTime=time;player.autoplay=wasPlaying;player.playsInline=true;
+  if(player.tagName==='VIDEO')player.style.height='100%';
+  wrap.appendChild(player);
+  document.getElementById('audioMode').textContent=audioOnly?'Video mode':'Audio-only mode';
+});
+document.getElementById('pipBtn').addEventListener('click',async()=>{
+  if(player&&player.tagName==='VIDEO'&&document.pictureInPictureEnabled){try{await player.requestPictureInPicture()}catch(e){alert('Picture in Picture is not available right now.')}}
+  else alert('Picture in Picture works with a playing video on supported browsers.');
+});
+document.getElementById('stopBtn').addEventListener('click',()=>{if(player){player.pause();player.currentTime=0}});
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
+</body></html>
